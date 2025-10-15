@@ -110,7 +110,6 @@ def list_messages():
     )
 
 if __name__ == '__main__':
-    print("Serveur Flask démarré sur http://192.168.0.107:5000")
     print("Endpoint webhook: POST /sms")
     print("Listing: GET /")
     app.run(host='0.0.0.0', port=5000, debug=True)
