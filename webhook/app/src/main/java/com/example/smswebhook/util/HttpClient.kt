@@ -16,7 +16,7 @@ import kotlin.coroutines.resumeWithException
 object HttpClient {
     private val client = OkHttpClient()
 
-    suspend fun postJson(url: String, data: JSONObject) = suspendCancellableCoroutine<Unit> { cont ->
+    suspend fun postJson(url: String, data: JSONObject): JSONObject = suspendCancellableCoroutine { cont ->
         val body = data.toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
         client.newCall(request).enqueue(object : Callback {
@@ -24,8 +24,19 @@ object HttpClient {
                 cont.resumeWithException(e)
             }
             override fun onResponse(call: Call, response: Response) {
-                response.close()
-                cont.resume(Unit)
+                response.use {
+                    if (response.isSuccessful) {
+                        val responseBody = response.body?.string()
+                        try {
+                            val jsonResponse = JSONObject(responseBody ?: "{}")
+                            cont.resume(jsonResponse)
+                        } catch (e: Exception) {
+                            cont.resumeWithException(IOException("Failed to parse response: ${e.message}"))
+                        }
+                    } else {
+                        cont.resumeWithException(IOException("Request failed with code ${response.code}"))
+                    }
+                }
             }
         })
     }

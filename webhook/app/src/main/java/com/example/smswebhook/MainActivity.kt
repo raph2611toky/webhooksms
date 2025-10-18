@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.RECEIVE_MMS,
             Manifest.permission.READ_SMS,
+            Manifest.permission.SEND_SMS,
             Manifest.permission.INTERNET,
             Manifest.permission.POST_NOTIFICATIONS,
             Manifest.permission.RECEIVE_BOOT_COMPLETED,
