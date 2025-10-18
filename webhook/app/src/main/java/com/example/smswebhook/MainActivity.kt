@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 class MainActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
+    private lateinit var urlText: TextView
     private lateinit var timerText: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var startTime = System.currentTimeMillis()
@@ -40,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         statusText = findViewById(R.id.status_text)
+        urlText = findViewById(R.id.url_text)
         timerText = findViewById(R.id.timer_text)
 
         val permissions = arrayOf(
@@ -63,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupUI() {
         statusText.text = "Webhook Actif vers ${Env.WEBHOOK_URL}"
         Prefs(this).saveWebhookUrl(Env.WEBHOOK_URL)
+        urlText.text = "→ ${Env.WEBHOOK_URL}"
         startTime = System.currentTimeMillis()
         handler.post(updateRunnable)
     }
