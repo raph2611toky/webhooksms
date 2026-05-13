@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_MMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
@@ -24,7 +25,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.SMSWebhook"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
 
         <activity
             android:name=".MainActivity"
@@ -33,25 +35,36 @@
             android:theme="@style/Theme.SMSWebhook">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <receiver android:name=".receiver.SmsMmsReceiver" android:exported="true">
+        <receiver
+            android:name=".receiver.SmsMmsReceiver"
+            android:exported="true">
             <intent-filter android:priority="1000">
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />  <!-- Action correcte -->
-                <!-- Enlève MMS_RECEIVED : invalide. Utilise DB query pour MMS -->
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".receiver.BootReceiver" android:exported="true">
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 
+        <!-- Ancien service : SMS entrant -> backend Django -->
         <service
             android:name=".service.WebhookService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Nouveau service : Django -> téléphone Android -> envoi SMS -->
+        <service
+            android:name=".service.SmsSendServerService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

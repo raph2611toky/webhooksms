@@ -83,10 +83,12 @@ class WebhookService : Service() {
         }
 
         val fingerprint = sha256("$address|$body|$timestamp")
+
         if (prefs.isRecentDuplicate(fingerprint)) {
             Log.w(TAG, "SMS dupliqué ignoré")
             return
         }
+
         prefs.saveLastInboundFingerprint(fingerprint, System.currentTimeMillis())
 
         val payload = JSONObject().apply {
@@ -150,6 +152,7 @@ class WebhookService : Service() {
             }
 
             val parts = ArrayList(smsManager.divideMessage(cleanMessage))
+
             smsManager.sendMultipartTextMessage(
                 cleanPhone,
                 null,
@@ -180,6 +183,7 @@ class WebhookService : Service() {
                 "SMS Webhook Service",
                 NotificationManager.IMPORTANCE_LOW
             )
+
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
         }
@@ -192,6 +196,7 @@ class WebhookService : Service() {
             @Suppress("DEPRECATION")
             stopForeground(true)
         }
+
         stopSelfResult(startId)
     }
 

@@ -1,6 +1,7 @@
 package com.example.smswebhook
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -10,7 +11,9 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.example.smswebhook.service.SmsSendServerService
 import com.example.smswebhook.util.Env
+import com.example.smswebhook.util.NetworkUtils
 import com.example.smswebhook.util.Prefs
 
 class MainActivity : AppCompatActivity() {
@@ -26,14 +29,22 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             val elapsed = (System.currentTimeMillis() - startTime) / 1000
             timerText.text = "Temps actif : ${elapsed}s"
-            handler.postDelayed(this, 1000)
+
+            refreshUrlsText()
+
+            handler.postDelayed(this, 3000)
         }
     }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             val allGranted = result.values.all { it }
+
             setupUI(allGranted)
+
+            if (allGranted) {
+                startSmsSendServer()
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,25 +61,53 @@ class MainActivity : AppCompatActivity() {
 
         if (hasRequiredPermissions()) {
             setupUI(true)
+            startSmsSendServer()
         } else {
             permissionLauncher.launch(requiredPermissions())
         }
     }
 
     private fun setupUI(allGranted: Boolean) {
-        val prefs = Prefs(this)
-
         statusText.text = if (allGranted) {
-            "Webhook SMS prêt"
+            "Webhook SMS prêt + serveur d'envoi actif"
         } else {
             "Permissions manquantes"
         }
 
-        urlText.text = "→ ${prefs.getWebhookUrl()}"
         startTime = System.currentTimeMillis()
 
         handler.removeCallbacks(updateRunnable)
         handler.post(updateRunnable)
+
+        refreshUrlsText()
+    }
+
+    private fun refreshUrlsText() {
+        val prefs = Prefs(this)
+
+        val localSmsUrl = NetworkUtils.buildLocalSmsSendUrl()
+            ?: "IP du téléphone introuvable. Vérifiez le Wi-Fi."
+
+        val allIps = NetworkUtils.getLocalIpv4Addresses()
+            .joinToString(", ")
+            .ifBlank { "Aucune IP détectée" }
+
+        urlText.text =
+            "Entrant Android → Django :\n" +
+            "${prefs.getWebhookUrl()}\n\n" +
+            "Sortant Django → Android :\n" +
+            "$localSmsUrl\n\n" +
+            "IP détectée(s) : $allIps"
+    }
+
+    private fun startSmsSendServer() {
+        val intent = Intent(this, SmsSendServerService::class.java)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
     private fun hasRequiredPermissions(): Boolean {
