@@ -36,9 +36,20 @@ class MainActivity : AppCompatActivity() {
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            val elapsed = (System.currentTimeMillis() - startTime) / 1000
-            timerText.text = "Temps actif : ${elapsed}s"
+            val prefs = Prefs(this@MainActivity)
 
+            if (prefs.isSmsGatewayEnabled()) {
+                val activeSince = prefs.getSmsGatewayEnabledAt()
+                    .takeIf { it > 0L }
+                    ?: startTime
+
+                val elapsed = (System.currentTimeMillis() - activeSince) / 1000
+                timerText.text = "Temps actif : ${elapsed}s"
+            } else {
+                timerText.text = "Service désactivé"
+            }
+
+            refreshStatusText(hasRequiredPermissions())
             refreshUrlsText()
 
             handler.postDelayed(this, 3000)
@@ -51,7 +62,7 @@ class MainActivity : AppCompatActivity() {
 
             setupUI(allGranted)
 
-            if (allGranted) {
+            if (allGranted && Prefs(this).isSmsGatewayEnabled()) {
                 startSmsSendServer()
             }
         }
@@ -65,34 +76,43 @@ class MainActivity : AppCompatActivity() {
         timerText = findViewById(R.id.timer_text)
         settingsButton = findViewById(R.id.settings_button)
 
-        val prefs = Prefs(this)
-        prefs.setWebhookEnabled(true)
-
         settingsButton.setOnClickListener {
             showBackendSettingsDialog()
         }
 
         if (hasRequiredPermissions()) {
             setupUI(true)
-            startSmsSendServer()
+
+            if (Prefs(this).isSmsGatewayEnabled()) {
+                startSmsSendServer()
+            }
         } else {
             permissionLauncher.launch(requiredPermissions())
         }
     }
 
     private fun setupUI(allGranted: Boolean) {
-        statusText.text = if (allGranted) {
-            "Webhook SMS prêt + serveur d'envoi actif"
-        } else {
-            "Permissions manquantes"
-        }
+        refreshStatusText(allGranted)
 
-        startTime = System.currentTimeMillis()
+        val prefs = Prefs(this)
+        startTime = prefs.getSmsGatewayEnabledAt()
+            .takeIf { it > 0L }
+            ?: System.currentTimeMillis()
 
         handler.removeCallbacks(updateRunnable)
         handler.post(updateRunnable)
 
         refreshUrlsText()
+    }
+
+    private fun refreshStatusText(allGranted: Boolean) {
+        val prefs = Prefs(this)
+
+        statusText.text = when {
+            !allGranted -> "Permissions manquantes"
+            !prefs.isSmsGatewayEnabled() -> "Service SMS désactivé"
+            else -> "Webhook SMS prêt + serveur d'envoi actif"
+        }
     }
 
     private fun showBackendSettingsDialog() {
@@ -101,6 +121,19 @@ class MainActivity : AppCompatActivity() {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(12), dp(20), dp(4))
+        }
+
+        val serviceSwitch = Switch(this).apply {
+            text = "Activer le service, les écoutes et les envois SMS"
+            isChecked = prefs.isSmsGatewayEnabled()
+            setPadding(0, 0, 0, dp(8))
+        }
+
+        val serviceHelpText = TextView(this).apply {
+            text = "Si ce bouton est désactivé, aucun SMS entrant ne sera envoyé au backend et aucun SMS sortant ne sera envoyé. À la réactivation, seuls les nouveaux SMS seront traités."
+            setTextColor(Color.DKGRAY)
+            textSize = 13f
+            setPadding(0, 0, 0, dp(14))
         }
 
         val helpText = TextView(this).apply {
@@ -114,7 +147,7 @@ class MainActivity : AppCompatActivity() {
             hint = "Ex: 192.168.0.117 ou https://backend.com"
             setText(prefs.getBackendHost())
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            singleLine = true
+            setSingleLine(true)
         }
 
         val portSwitch = Switch(this).apply {
@@ -127,7 +160,7 @@ class MainActivity : AppCompatActivity() {
             hint = "Ex: 8000"
             setText(prefs.getBackendPort())
             inputType = InputType.TYPE_CLASS_NUMBER
-            singleLine = true
+            setSingleLine(true)
             isEnabled = portSwitch.isChecked
         }
 
@@ -138,6 +171,8 @@ class MainActivity : AppCompatActivity() {
 
         portInput.alpha = if (portSwitch.isChecked) 1f else 0.45f
 
+        container.addView(serviceSwitch)
+        container.addView(serviceHelpText)
         container.addView(helpText)
         container.addView(labelText("Host / lien backend"))
         container.addView(hostInput)
@@ -146,7 +181,7 @@ class MainActivity : AppCompatActivity() {
         container.addView(portInput)
 
         AlertDialog.Builder(this)
-            .setTitle("Paramètres backend")
+            .setTitle("Paramètres")
             .setView(container)
             .setNegativeButton("Annuler", null)
             .setPositiveButton("Appliquer") { _, _ ->
@@ -156,12 +191,27 @@ class MainActivity : AppCompatActivity() {
                     portEnabled = portSwitch.isChecked
                 )
 
-                refreshUrlsText()
-                Toast.makeText(
-                    this,
-                    "Backend mis à jour : ${prefs.getWebhookUrl()}",
-                    Toast.LENGTH_LONG
-                ).show()
+                prefs.setSmsGatewayEnabled(serviceSwitch.isChecked)
+
+                if (serviceSwitch.isChecked) {
+                    if (hasRequiredPermissions()) {
+                        startSmsSendServer()
+                    } else {
+                        permissionLauncher.launch(requiredPermissions())
+                    }
+                } else {
+                    stopSmsSendServer()
+                }
+
+                setupUI(hasRequiredPermissions())
+
+                val message = if (serviceSwitch.isChecked) {
+                    "Service activé. Seuls les nouveaux SMS seront traités."
+                } else {
+                    "Service désactivé."
+                }
+
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
             .show()
     }
@@ -186,6 +236,12 @@ class MainActivity : AppCompatActivity() {
             .joinToString(", ")
             .ifBlank { "Aucune IP détectée" }
 
+        val serviceStatus = if (prefs.isSmsGatewayEnabled()) {
+            "activé"
+        } else {
+            "désactivé"
+        }
+
         val portStatus = if (prefs.isBackendPortEnabled()) {
             "activé : ${prefs.getBackendPort()}"
         } else {
@@ -193,6 +249,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         urlText.text =
+            "Service SMS : $serviceStatus\n\n" +
             "Entrant Android → Django :\n" +
             "${prefs.getWebhookUrl()}\n" +
             "Port backend : $portStatus\n\n" +
@@ -202,6 +259,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startSmsSendServer() {
+        if (!Prefs(this).isSmsGatewayEnabled()) {
+            stopSmsSendServer()
+            return
+        }
+
         val intent = Intent(this, SmsSendServerService::class.java)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -209,6 +271,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(intent)
         }
+    }
+
+    private fun stopSmsSendServer() {
+        stopService(Intent(this, SmsSendServerService::class.java))
     }
 
     private fun hasRequiredPermissions(): Boolean {

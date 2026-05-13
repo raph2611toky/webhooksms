@@ -39,11 +39,41 @@ class Prefs(context: Context) {
         portEnabled = isBackendPortEnabled()
     )
 
+    fun setSmsGatewayEnabled(enabled: Boolean) {
+        val wasEnabled = isSmsGatewayEnabled()
+
+        val editor = prefs.edit()
+            .putBoolean("sms_gateway_enabled", enabled)
+
+        // Quand on réactive le service, on mémorise l'heure exacte.
+        // Les SMS reçus avant cette heure seront ignorés.
+        if (enabled && !wasEnabled) {
+            editor.putLong("sms_gateway_enabled_at", System.currentTimeMillis())
+        }
+
+        editor.apply()
+    }
+
+    fun isSmsGatewayEnabled(): Boolean =
+        prefs.getBoolean("sms_gateway_enabled", true)
+
+    fun getSmsGatewayEnabledAt(): Long =
+        prefs.getLong("sms_gateway_enabled_at", 0L)
+
+    fun shouldProcessMessage(timestampMs: Long): Boolean {
+        if (!isSmsGatewayEnabled()) return false
+
+        val enabledAt = getSmsGatewayEnabledAt()
+
+        return enabledAt <= 0L || timestampMs >= enabledAt
+    }
+
+    // Compatibilité avec l'ancien nom utilisé dans le reste du projet.
     fun setWebhookEnabled(enabled: Boolean) =
-        prefs.edit().putBoolean("webhook_enabled", enabled).apply()
+        setSmsGatewayEnabled(enabled)
 
     fun isWebhookEnabled(): Boolean =
-        prefs.getBoolean("webhook_enabled", true)
+        isSmsGatewayEnabled()
 
     fun saveLastInboundFingerprint(fingerprint: String, timestampMs: Long) {
         prefs.edit()

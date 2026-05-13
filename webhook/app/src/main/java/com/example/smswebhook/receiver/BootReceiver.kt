@@ -14,6 +14,11 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             val prefs = Prefs(context)
 
+            if (!prefs.isSmsGatewayEnabled()) {
+                Log.i(TAG, "Boot completed mais service SMS désactivé")
+                return
+            }
+
             Log.i(TAG, "Boot completed. Webhook URL = ${prefs.getWebhookUrl()}")
 
             val serviceIntent = Intent(context, SmsSendServerService::class.java)

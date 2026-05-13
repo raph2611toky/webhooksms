@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.smswebhook.util.Env
 import com.example.smswebhook.util.NetworkUtils
+import com.example.smswebhook.util.Prefs
 
 class SmsSendServerService : Service() {
 
@@ -25,10 +26,22 @@ class SmsSendServerService : Service() {
             buildNotification(getNotificationText())
         )
 
+        if (!Prefs(this).isSmsGatewayEnabled()) {
+            Log.i(TAG, "Service SMS désactivé, serveur local non démarré")
+            stopSelf()
+            return
+        }
+
         startSmsServer()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!Prefs(this).isSmsGatewayEnabled()) {
+            Log.i(TAG, "Service SMS désactivé, arrêt du serveur local")
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+
         if (server == null) {
             startSmsServer()
         }
@@ -75,6 +88,10 @@ class SmsSendServerService : Service() {
     }
 
     private fun getNotificationText(): String {
+        if (!Prefs(this).isSmsGatewayEnabled()) {
+            return "Service SMS désactivé"
+        }
+
         val url = NetworkUtils.buildLocalSmsSendUrl()
 
         return if (url != null) {

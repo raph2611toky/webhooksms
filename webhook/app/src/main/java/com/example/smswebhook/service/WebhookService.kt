@@ -72,8 +72,8 @@ class WebhookService : Service() {
         timestamp: Long,
         subscriptionId: Int
     ) {
-        if (!prefs.isWebhookEnabled()) {
-            Log.i(TAG, "Webhook désactivé, SMS ignoré")
+        if (!prefs.shouldProcessMessage(timestamp)) {
+            Log.i(TAG, "Service désactivé ou SMS reçu avant activation, SMS ignoré")
             return
         }
 
@@ -121,6 +121,11 @@ class WebhookService : Service() {
             return
         }
 
+        if (!prefs.isSmsGatewayEnabled()) {
+            Log.i(TAG, "Service désactivé avant l'envoi de la réponse SMS")
+            return
+        }
+
         sendSms(
             phoneNumber = address,
             message = reply,
@@ -139,6 +144,11 @@ class WebhookService : Service() {
 
             if (cleanPhone.isBlank() || cleanMessage.isBlank()) {
                 Log.w(TAG, "sendSms annulé: numéro ou message vide")
+                return
+            }
+
+            if (!prefs.isSmsGatewayEnabled()) {
+                Log.i(TAG, "Service désactivé, envoi SMS annulé")
                 return
             }
 

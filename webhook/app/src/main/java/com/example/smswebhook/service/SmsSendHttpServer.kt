@@ -8,6 +8,7 @@ import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.smswebhook.util.Env
+import com.example.smswebhook.util.Prefs
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONObject
 
@@ -47,6 +48,15 @@ class SmsSendHttpServer(
                     JSONObject()
                         .put("success", false)
                         .put("error", "Méthode non autorisée. Utilisez POST.")
+                )
+            }
+
+            if (!Prefs(appContext).isSmsGatewayEnabled()) {
+                return jsonResponse(
+                    Response.Status.FORBIDDEN,
+                    JSONObject()
+                        .put("success", false)
+                        .put("error", "Service SMS désactivé")
                 )
             }
 
@@ -147,6 +157,10 @@ class SmsSendHttpServer(
     ) {
         val cleanPhone = phoneNumber.trim()
         val cleanMessage = message.trim()
+
+        if (!Prefs(appContext).isSmsGatewayEnabled()) {
+            throw IllegalStateException("Service SMS désactivé")
+        }
 
         if (cleanPhone.isBlank() || cleanMessage.isBlank()) {
             throw IllegalArgumentException("Numéro ou message vide")

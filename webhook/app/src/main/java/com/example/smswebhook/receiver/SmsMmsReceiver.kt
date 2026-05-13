@@ -8,6 +8,7 @@ import android.provider.Telephony
 import android.util.Log
 import com.example.smswebhook.data.SmsDataExtractor
 import com.example.smswebhook.service.WebhookService
+import com.example.smswebhook.util.Prefs
 
 class SmsMmsReceiver : BroadcastReceiver() {
 
@@ -17,8 +18,20 @@ class SmsMmsReceiver : BroadcastReceiver() {
         }
 
         try {
+            val prefs = Prefs(context)
+
+            if (!prefs.isSmsGatewayEnabled()) {
+                Log.i(TAG, "Service SMS désactivé, SMS entrant ignoré")
+                return
+            }
+
             val extractor = SmsDataExtractor()
             val incomingSms = extractor.extractIncomingSms(intent) ?: return
+
+            if (!prefs.shouldProcessMessage(incomingSms.timestamp)) {
+                Log.i(TAG, "SMS reçu avant activation, ignoré")
+                return
+            }
 
             val serviceIntent = Intent(context, WebhookService::class.java).apply {
                 action = WebhookService.ACTION_PROCESS_INCOMING_SMS
