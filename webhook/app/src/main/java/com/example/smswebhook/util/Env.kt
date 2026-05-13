@@ -2,10 +2,14 @@ package com.example.smswebhook.util
 
 object Env {
     /*
-     * Ancien endpoint Django.
-     * Android envoie ici les SMS entrants capturés.
+     * Configuration par défaut du backend Django.
+     * L'URL finale est construite dynamiquement par Prefs :
+     * http(s)://HOST[:PORT]/api/chatbot/sms/webhook/
      */
-    const val WEBHOOK_URL = "http://192.168.0.117:8000/api/chatbot/sms/webhook/"
+    const val DEFAULT_BACKEND_HOST = "192.168.0.117"
+    const val DEFAULT_BACKEND_PORT = 8000
+    const val DEFAULT_BACKEND_PORT_ENABLED = true
+    const val WEBHOOK_PATH = "/api/chatbot/sms/webhook/"
 
     /*
      * Token utilisé dans les deux sens :
@@ -15,7 +19,7 @@ object Env {
     const val WEBHOOK_TOKEN = "HZZFQWVathzihNNidlnNFmzmAWjgxqRdprWkMgujvwyPyxNBBMgGCTpyWLjYKucHtGUSyRcaVgLiaGPONOpoBxDHSNDAjPqBiaMNyjMnnXHlVZkFUwoJspuqsWMKBBHRgpqLfsTaWlnYXEDUnJDdAKDLHbiELlSfFoRKqNtTYlxBHzqogcoFIpuclnUTKgyXZNKZSTVDYcUtAjnwVAoedRhjdwYbYopQUifEAdSgfUOKIcDHhazBTimCqF"
 
     /*
-     * Nouveau serveur local Android.
+     * Serveur local Android.
      * Le téléphone écoute sur toutes les interfaces : 0.0.0.0:8000
      * L'URL publique est construite dynamiquement avec NetworkUtils.
      */

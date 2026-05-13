@@ -2,6 +2,7 @@ package com.example.smswebhook.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.net.URI
 
 class Prefs(context: Context) {
     private val prefs: SharedPreferences =
@@ -13,10 +14,30 @@ class Prefs(context: Context) {
     fun saveLastMmsId(id: Long) = prefs.edit().putLong("last_mms_id", id).apply()
     fun getLastMmsId(): Long = prefs.getLong("last_mms_id", 0L)
 
-    fun saveWebhookUrl(url: String) = prefs.edit().putString("webhook_url", url).apply()
+    fun saveBackendConfig(host: String, port: String, portEnabled: Boolean) {
+        prefs.edit()
+            .putString("backend_host", sanitizeHostForStorage(host))
+            .putString("backend_port", sanitizePortForStorage(port))
+            .putBoolean("backend_port_enabled", portEnabled)
+            .putBoolean("backend_config_initialized", true)
+            .apply()
+    }
 
-    fun getWebhookUrl(): String =
-        prefs.getString("webhook_url", Env.WEBHOOK_URL) ?: Env.WEBHOOK_URL
+    fun getBackendHost(): String =
+        prefs.getString("backend_host", Env.DEFAULT_BACKEND_HOST) ?: Env.DEFAULT_BACKEND_HOST
+
+    fun getBackendPort(): String =
+        prefs.getString("backend_port", Env.DEFAULT_BACKEND_PORT.toString())
+            ?: Env.DEFAULT_BACKEND_PORT.toString()
+
+    fun isBackendPortEnabled(): Boolean =
+        prefs.getBoolean("backend_port_enabled", Env.DEFAULT_BACKEND_PORT_ENABLED)
+
+    fun getWebhookUrl(): String = buildWebhookUrl(
+        hostInput = getBackendHost(),
+        portInput = getBackendPort(),
+        portEnabled = isBackendPortEnabled()
+    )
 
     fun setWebhookEnabled(enabled: Boolean) =
         prefs.edit().putBoolean("webhook_enabled", enabled).apply()
@@ -37,5 +58,74 @@ class Prefs(context: Context) {
         val now = System.currentTimeMillis()
 
         return lastFingerprint == fingerprint && (now - lastTimestamp) <= windowMs
+    }
+
+    private fun buildWebhookUrl(
+        hostInput: String,
+        portInput: String,
+        portEnabled: Boolean
+    ): String {
+        val normalizedInput = normalizeHostInput(hostInput)
+        val uri = try {
+            URI(normalizedInput)
+        } catch (_: Exception) {
+            URI("http://${Env.DEFAULT_BACKEND_HOST}")
+        }
+
+        val scheme = uri.scheme?.ifBlank { "http" } ?: "http"
+        val host = uri.host
+            ?: normalizedInput.substringAfter("://", normalizedInput)
+                .substringBefore("/")
+                .substringBefore(":")
+                .ifBlank { Env.DEFAULT_BACKEND_HOST }
+
+        val port = sanitizePortForStorage(portInput)
+        val portPart = if (portEnabled && port.isNotBlank()) ":$port" else ""
+
+        val basePath = (uri.rawPath ?: "")
+            .removeSuffix(Env.WEBHOOK_PATH.trimEnd('/'))
+            .trim('/')
+
+        val finalPath = joinPaths(basePath, Env.WEBHOOK_PATH)
+
+        return "$scheme://$host$portPart$finalPath"
+    }
+
+    private fun normalizeHostInput(value: String): String {
+        var host = value.trim().ifBlank { Env.DEFAULT_BACKEND_HOST }
+
+        if (!host.startsWith("http://") && !host.startsWith("https://")) {
+            host = "http://$host"
+        }
+
+        return host.trimEnd('/')
+    }
+
+    private fun sanitizeHostForStorage(value: String): String {
+        return value.trim()
+            .removeSuffix(Env.WEBHOOK_PATH.trimEnd('/'))
+            .trimEnd('/')
+            .ifBlank { Env.DEFAULT_BACKEND_HOST }
+    }
+
+    private fun sanitizePortForStorage(value: String): String {
+        val port = value.trim().toIntOrNull()
+
+        return if (port != null && port in 1..65535) {
+            port.toString()
+        } else {
+            Env.DEFAULT_BACKEND_PORT.toString()
+        }
+    }
+
+    private fun joinPaths(basePath: String, childPath: String): String {
+        val cleanBase = basePath.trim('/')
+        val cleanChild = childPath.trim('/')
+
+        return if (cleanBase.isBlank()) {
+            "/$cleanChild/"
+        } else {
+            "/$cleanBase/$cleanChild/"
+        }
     }
 }
